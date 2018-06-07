@@ -59,53 +59,56 @@ varying vec3 vNormal;
  * @requires ray
  */
 
-vec2 nucleus = 0.5*resolution*scale,
-    branch = vec2(1.0, 0.0),
-    branchNormal = perp(branch);
+// @todo Hack fixes for non-constant expressions... fix 'em.
 
-Ray2 branchRay = Ray2(nucleus, branch);
+vec2 branch() { return vec2(1.0, 0.0); }
+
+vec2 branchNormal() { return perp(branch()); }
+
+vec2 nucleus() { return 0.5*resolution*scale; }
+
+Ray2 branchRay() { return Ray2(nucleus(), branch()); }
+
+float mirrorAngle() { return pi/numBranches; }
+
+vec2 mirror() { return vec2(cos(mirrorAngle()), sin(mirrorAngle())); }
+vec2 toMirror() { return mirror()-branch(); }
 
 
-float mirrorAngle = pi/numBranches;
+float growthLimit() { return length(toMirror()); }
 
-vec2 mirror = vec2(cos(mirrorAngle), sin(mirrorAngle)),
-    toMirror = mirror-branch;
+vec2 midFrond() { return toMirror()/growthLimit(); }
+vec2 maxFrond() { return normalize(mix(midFrond(), branch(), frondAlignRange[1])); }
+vec2 minFrond() { return normalize(mix(midFrond(), -branch(), frondAlignRange[0])); }
 
-
-float growthLimit = length(toMirror);
-
-vec2 midFrond = toMirror/growthLimit,
-    maxFrond = normalize(mix(midFrond, branch, frondAlignRange[1])),
-    minFrond = normalize(mix(midFrond, -branch, frondAlignRange[0]));
-
-float refractionRatio = airRefraction/iceRefraction;
+float refractionRatio() { return airRefraction/iceRefraction; }
 
 
 vec2 mirrorPos(vec2 position) {
-    vec2 pos = position-branchRay.point;
+    vec2 pos = position-branchRay().point;
 
     float r = length(pos),
-        offset = atan(pos.y, pos.x)/mirrorAngle,
-        mirrored = mirrorAngle*
+        offset = atan(pos.y, pos.x)/mirrorAngle(),
+        mirrored = mirrorAngle()*
             mix(fract(offset), 1.0-fract(offset), mod(floor(offset), 2.0));
     
-    return branchRay.point+(vec2(cos(mirrored), sin(mirrored))*r);
+    return branchRay().point+(vec2(cos(mirrored), sin(mirrored))*r);
 }
 
 
 Ray2 getFrond(float align, float t) {
-    vec2 aligned = mix(mix(minFrond, midFrond, align/midFrequency),
-            mix(midFrond, maxFrond, (align-midFrequency)/(1.0-midFrequency)),
+    vec2 aligned = mix(mix(minFrond(), midFrond(), align/midFrequency),
+            mix(midFrond(), maxFrond(), (align-midFrequency)/(1.0-midFrequency)),
             step(midFrequency, align));
 
-    return Ray2(nucleus+(branch*t), normalize(aligned));
+    return Ray2(nucleus()+(branch()*t), normalize(aligned));
 }
 
 
 // May need a little work to give a linear scale and decent visibility across
 // the spectrum.
 float frondGrowth(vec2 direction, float size, float l, float t) {
-    float limit = mix(1.0, l*(1.0-dot(direction, toMirror))*2.0, frondGrowthLimit);
+    float limit = mix(1.0, l*(1.0-dot(direction, toMirror()))*2.0, frondGrowthLimit);
 
     // return size*expStep(t, 1.0, -0.25)*limit;
     // return size*(1.0-expStep(t, 1.0, 1.2))*limit;
@@ -142,9 +145,9 @@ void main() {
         nucleusGrowth = pointGrowth(branchGrowth*widthGrowthRate, branchWidth),
 
         // Inside is below 1.0
-        w = taper(pos, branchRay, branchGrowth, nucleusGrowth,
+        w = taper(pos, branchRay(), branchGrowth, nucleusGrowth,
                 taperAmount, taperAngle),
-        dist2 = lineDist2(pos, branchRay, branchGrowth, w, nearest),
+        dist2 = lineDist2(pos, branchRay(), branchGrowth, w, nearest),
 
         // Inside is above 1.0
         spread = 1.0/dist2;
@@ -228,7 +231,7 @@ void main() {
     #endif
 
 
-    vec3 refracted = refract(incident, normal, refractionRatio);
+    vec3 refracted = refract(incident, normal, refractionRatio());
 
     float slope = 1.0-dot(vNormal, normal),
         // h = height*(max(1.0-closest, 0.0)+slope);
@@ -240,5 +243,5 @@ void main() {
 
 
     gl_FragColor.rgb += vec3(0.0, image)+
-        (diffuse*pow(slope, refractionRatio)*length(incident)*diffuseScatter);
+        (diffuse*pow(slope, refractionRatio())*length(incident)*diffuseScatter);
 }
