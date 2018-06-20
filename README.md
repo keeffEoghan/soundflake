@@ -1,4 +1,4 @@
-# soundflake
+# Soundflake
 
 An AV experiment - creating an icy snowflake through sound.
 
